@@ -1,0 +1,181 @@
+---
+title: "Customer Success Analysis for Swire Coca-Cola"
+author: "Katelyn Candee"
+date: ''
+output:
+  html_document:
+    highlight: breezedark
+    number_sections: yes
+    toc: yes
+    fig_width: 15
+    fig_height: 10
+  pdf_document:
+    toc: yes
+editor_options:
+  chunk_output_type: console
+---
+
+# Business Problem Statement
+
+When bidding for new contracts with local businesses, like restaurants and food trucks, to exclusively sell Coca-Cola, Swire Coca-Cola needs to make an informed decision about the profitability of that business. If Swire Coca-Cola offers a low price point to win a contract, and the business does not last, Swire Coca-Cola loses a significant investment.
+
+Improving Swire Coca-Cola's ability to predict the success of a new business in their market will increase the likelihood that their new accounts will be long-lasting and profitable.
+
+This is a predictive analytics project. We will use both classification and regression techniques to produce three models to predict the popularity, longevity, and 3-year sales volume of prospective businesses using historical customer and sales data provided by Swire Coca-Cola, as well as census and customer review data externally sourced by our project team. The output of the three models will be probability of customer popularity, classified as a 4.0 customer review rating or higher; customer longevity, classified into three groups: 1, 2, and 3+ years; and total 3-year sales volume.
+
+The project will be considered a success if Swire Coca-Cola sees an increase in its number of profitable B2B relationships from using our predictions to inform bidding.
+
+The deliverables for this project will be a visual presentation and a written report summarizing our exploratory data analysis, model selection, evaluation and deployment process, and recommendations for applying our results. The presentation slides, written report, and all project code files will be provided to Swire Coca-Cola in the form of a GitHub repository accompanied by documentation explaining the repository contents, access, and organization.
+
+This project will be completed by student team members Katelyn Candee, Li Xiang and Vicky Mao by April 13, with progress checkpoints overseen by University of Utah faculty advisor Jeremy Morris on or before the following dates:
+
+* Exploratory data analysis - February 19
+* Model selection, evaluation and deployment - March 19
+* Practice project presentation - April 9
+
+Project team members may be reach at:
+
+* Katelyn Candee - (203) 823-3129 - u1398566@utah.com
+* Li Xiang - (385) 335-4332 - u1328517@utah.edu
+* Vicky Mao - (801) 970-0482 - u113228@utah.edu
+* Jeremy Morris (Faculty Advisor) - (801) 573-3265 - jeremy.morris@utah.edu
+
+# Exploratory Data Analysis
+
+## Load and inspect data
+
+### Customer Data
+
+Loading customer data set and exploring structure.
+
+```{r}
+
+# Load packages
+library(tidyverse)
+
+# Import dataset
+customer <- read.csv("https://raw.githubusercontent.com/katelyn-candee/CustomerSuccessAnalysis_Swire/main/data/FSOP_Customer_Data_v2.0.csv",
+                     stringsAsFactors = FALSE)
+
+# View structure and summary
+str(customer)
+summary(customer)
+
+# Check for missing values
+sum(is.na(customer))
+
+```
+
+No missing values. 
+
+There are many discrete variables in this data set that describe the type of customer, and will be more useful if converted to factors. The data set also includes an on-boarding date variable that can be used to calculate customer longevity.
+
+```{r}
+
+# Convert discrete variables to factors
+customer$CUSTOMER_NUMBER_BLINDED <- as.factor(customer$CUSTOMER_NUMBER_BLINDED)
+customer$SALES_OFFICE_DESCRIPTION <- as.factor(customer$SALES_OFFICE_DESCRIPTION)
+customer$DELIVERY_PLANT_DESCRIPTION <- as.factor(customer$DELIVERY_PLANT_DESCRIPTION)
+customer$ADDRESS_CITY <- as.factor(customer$ADDRESS_CITY)
+customer$ADDRESS_ZIP_CODE <- as.factor(customer$ADDRESS_ZIP_CODE)
+customer$COUNTY <- as.factor(customer$COUNTY)
+customer$CUSTOMER_ACTIVITY_CLUSTER_DESCRIPTION <- as.factor(customer$CUSTOMER_ACTIVITY_CLUSTER_DESCRIPTION)
+customer$CUSTOMER_TRADE_CHANNEL_DESCRIPTION <- as.factor(customer$CUSTOMER_TRADE_CHANNEL_DESCRIPTION)
+customer$CUSTOMER_SUB_TRADE_CHANNEL_DESCRIPTION <- as.factor(customer$CUSTOMER_SUB_TRADE_CHANNEL_DESCRIPTION)
+customer$BUSINESS_TYPE_EXTENSION_DESCRIPTION <- as.factor(customer$BUSINESS_TYPE_EXTENSION_DESCRIPTION)
+customer$CUSTOMER_TRADE_CHANNEL_DESCRIPTION2 <- as.factor(customer$CUSTOMER_TRADE_CHANNEL_DESCRIPTION2)
+customer$MARKET_DESCRIPTION <- as.factor(customer$MARKET_DESCRIPTION)
+customer$COLD_DRINK_CHANNEL_DESCRIPTION <- as.factor(customer$COLD_DRINK_CHANNEL_DESCRIPTION)
+
+# Convert on-boarding date to date type and create new variable for customer
+# longevity calculated in years
+library(lubridate)
+customer$ON_BOARDING_DATE <- as.Date(customer$ON_BOARDING_DATE)
+customer$CUSTOMER_LONGEVITY <- time_length(difftime(Sys.Date(),
+                                                    customer$ON_BOARDING_DATE),
+                                           "years")
+
+# view data structure and summary after observations
+str(customer)
+summary(customer)
+```
+
+The customer longevity calculation produced at least one negative result.
+
+```{r}
+# Inspect all observations with zero or negative customer longevity
+customer %>%
+  filter(customer$CUSTOMER_LONGEVITY <= 0)
+
+```
+
+Only one customer was calculated to have negative customer longevity. The on-boarding date provided for this customer is 9999-12-31. We may be able to use sales data to replace this value.
+
+### Sales Data
+
+## Plot and explore relationships
+
+### Customer Data
+
+Exploring customer distribution by activity cluster, trade channel, sub trade channel, business type, market, cold drink channel, and customer longevity
+
+```{r}
+library(ggplot2)
+
+# Plot distribution by activity cluster
+ggplot(customer, aes(x = CUSTOMER_ACTIVITY_CLUSTER_DESCRIPTION)) + 
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by trade channel
+ggplot(customer, aes(x = CUSTOMER_TRADE_CHANNEL_DESCRIPTION)) + 
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by sub trade channel
+ggplot(customer, aes(x = CUSTOMER_SUB_TRADE_CHANNEL_DESCRIPTION)) +
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by business type
+ggplot(customer, aes(x = BUSINESS_TYPE_EXTENSION_DESCRIPTION)) +
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by customer trade channel (2)
+ggplot(customer, aes(x = CUSTOMER_TRADE_CHANNEL_DESCRIPTION2)) +
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by market
+ggplot(customer, aes(x = MARKET_DESCRIPTION)) +
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by cold drink channel
+ggplot(customer, aes(x = COLD_DRINK_CHANNEL_DESCRIPTION)) +
+  geom_histogram(stat = "count") +
+  coord_flip()
+
+# Plot distribution by customer longevity, removing negative outlier
+customer %>%
+  filter(CUSTOMER_LONGEVITY > 0) %>%
+  ggplot(customer, mapping=aes(x = CUSTOMER_LONGEVITY)) + 
+    geom_histogram(binwidth = 1)
+
+```
+
+Exploring customer distribution by geographical location using provided latitude and longitude coordinates
+
+```{r}
+
+# Plot customer geographical locations on map
+library(mapview)
+mapview(customer,
+        xcol = "GEO_LONGITUDE",
+        ycol = "GEO_LATITUDE",
+        crs = 4269,
+        grid = FALSE)
+
+```
+
